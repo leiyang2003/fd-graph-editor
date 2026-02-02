@@ -1,0 +1,302 @@
+# 故事DSL定义：被诅咒的古镜
+# 作者：Grok（基于用户请求生成）
+# 版本：1.0
+# 描述：这是一个交互式恐怖故事，使用DSL定义情节。故事围绕一面古镜展开，玩家决策影响结局。
+# 引擎假设：这是一个简单的状态机引擎，支持章节、节拍、选择、条件、效果和随机事件。
+# 全局状态变量：
+#   - sanity: 理智值（初始100，低于30触发幻觉）
+#   - mirror_state: 镜子状态（初始：dusty；可能：activated, shattered, possessed）
+#   - inventory: 物品列表（初始：[]）
+#   - time_of_day: 时间（初始：day；可能：night）
+
+story:
+  id: cursed_mirror
+  title: 被诅咒的古镜
+  author: 匿名
+  genre: 恐怖 / 互动小说
+  initial_state:
+    sanity: 100
+    mirror_state: dusty
+    inventory: []
+    time_of_day: day
+
+  # 章节列表
+  chapters:
+    - id: chapter1
+      title: 阁楼的发现
+      entry_condition: true  # 无条件进入
+      beats:
+        - id: intro
+          type: description
+          text: |
+            你继承了祖母的老房子。在整理阁楼时，你发现了一面布满灰尘的古镜。它看起来很古老，镜框上雕刻着奇怪的符号。你感到一股寒意，但好奇心驱使你靠近。
+        
+        - id: first_choice
+          type: choice
+          prompt: 你决定怎么处理这面镜子？
+          options:
+            - text: 擦干净它
+              next: clean_mirror
+              effects:
+                - mirror_state: activated
+                - sanity: -10
+                - add_inventory: cleaning_cloth
+            
+            - text: 忽略它，继续整理
+              next: ignore_mirror
+              effects:
+                - time_of_day: night  # 时间推进
+            
+            - text: 直接砸碎它
+              next: shatter_early
+              effects:
+                - mirror_state: shattered
+                - sanity: -20
+                - game_over: true  # 早夭结局
+
+        - id: clean_mirror
+          type: event
+          condition: mirror_state == activated
+          text: |
+            你用一块布擦拭镜面。灰尘散去，镜子里反射出你的影像，但影像的眼睛似乎在眨眼。你揉揉眼睛，以为是错觉。
+          next: chapter2_intro
+          effects:
+            - sanity: -5
+        
+        - id: ignore_mirror
+          type: description
+          text: |
+            你决定先不管镜子，继续整理其他东西。夜幕降临，你听到阁楼传来奇怪的声响。
+          next: night_event
+          effects:
+            - sanity: -5
+        
+        - id: night_event
+          type: random_event
+          text: |
+            半夜，你被镜子发出的低语声惊醒。你必须回去检查。
+          probability: 100  # 必然发生
+          next: clean_mirror  # 强制激活镜子
+          effects:
+            - mirror_state: activated
+            - time_of_day: night
+        
+        - id: shatter_early
+          type: ending
+          title: 仓促的毁灭
+          text: |
+            你砸碎了镜子，但碎片反射出无数扭曲的脸庞。诅咒降临，你永远迷失在镜像世界中。
+          outcome: bad
+
+    - id: chapter2
+      title: 镜像的低语
+      entry_condition: mirror_state == activated
+      beats:
+        - id: chapter2_intro
+          type: description
+          text: |
+            镜子激活后，你开始听到低语声。它似乎在呼唤你的名字。你感到不安，但无法移开视线。
+        
+        - id: investigate
+          type: choice
+          prompt: 你要如何调查镜子？
+          options:
+            - text: 触摸镜面
+              next: touch_mirror
+              effects:
+                - sanity: -15
+                - mirror_state: possessed
+            
+            - text: 研究镜框符号
+              next: research_symbols
+              effects:
+                - add_inventory: notebook
+                - sanity: -5
+            
+            - text: 离开房间，寻求帮助
+              next: seek_help
+              effects:
+                - time_of_day: night if time_of_day == day
+
+        - id: touch_mirror
+          type: event
+          condition: sanity > 50
+          text: |
+            你的手伸向镜面，突然被吸入！你在镜像世界中游荡，看到过去的记忆扭曲变形。
+          next: mirror_world
+          effects:
+            - sanity: -20
+        
+        - id: touch_mirror_low_sanity
+          type: event
+          condition: sanity <= 50
+          text: |
+            理智低落，你触摸镜面时，镜像中的你伸出手抓住你。诅咒完成，你成为镜子的囚徒。
+          next: ending_possessed
+          effects:
+            - game_over: true
+        
+        - id: research_symbols
+          type: description
+          text: |
+            你在笔记本上记录符号。它们似乎是古代诅咒的文字，提到“打破循环才能解脱”。
+          next: find_clue
+          effects:
+            - add_inventory: ancient_clue
+        
+        - id: find_clue
+          type: event
+          text: |
+            通过线索，你发现镜子需要特定的仪式来破坏：用祖母的遗物砸碎它。
+          next: ritual_choice
+        
+        - id: seek_help
+          type: description
+          text: |
+            你打电话给朋友，但他们不信。夜里，镜子开始移动物体。你必须面对它。
+          next: investigate  # 循环回选择
+          effects:
+            - sanity: -10
+        
+        - id: mirror_world
+          type: choice
+          prompt: 在镜像世界中，你看到三个门。你选择哪一个？
+          options:
+            - text: 左门（过去）
+              next: past_door
+              effects:
+                - sanity: -10
+            
+            - text: 中门（现在）
+              next: present_door
+              effects:
+                - sanity: -5
+            
+            - text: 右门（未来）
+              next: future_door
+              effects:
+                - sanity: -15
+        
+        - id: past_door
+          type: description
+          text: |
+            你看到祖母年轻时封印镜子的场景。线索：镜子害怕火光。
+          next: escape_mirror
+          effects:
+            - add_inventory: fire_clue
+        
+        - id: present_door
+          type: ending
+          title: 永恒的循环
+          text: |
+            你陷入无限循环，永远重复擦镜子的动作。
+          outcome: neutral
+        
+        - id: future_door
+          type: description
+          text: |
+            你看到自己疯狂的未来。恐惧让你清醒。
+          next: escape_mirror
+          effects:
+            - sanity: -20
+        
+        - id: escape_mirror
+          type: event
+          condition: inventory has fire_clue
+          text: |
+            使用火光线索，你点燃蜡烛，镜子开始融化。你逃出镜像世界。
+          next: chapter3_intro
+          effects:
+            - mirror_state: weakened
+            - sanity: +20
+        
+        - id: ritual_choice
+          type: choice
+          prompt: 你找到了祖母的遗物（一个银十字）。你决定？
+          options:
+            - text: 执行仪式，砸碎镜子
+              next: perform_ritual
+              effects:
+                - remove_inventory: ancient_clue
+            
+            - text: 犹豫，观察镜子
+              next: hesitation
+              effects:
+                - sanity: -10
+
+        - id: perform_ritual
+          type: event
+          condition: sanity > 30 and time_of_day == day
+          text: |
+            在白天，你用银十字砸碎镜子。诅咒解除，黑烟散去。
+          next: ending_good
+        
+        - id: hesitation
+          type: description
+          text: |
+            犹豫间，镜子控制了你。你成为它的下一个受害者。
+          next: ending_possessed
+        
+        - id: ending_possessed
+          type: ending
+          title: 镜中囚徒
+          text: |
+            你的灵魂被困在镜中，等待下一个好奇者。
+          outcome: bad
+
+    - id: chapter3
+      title: 最终对抗
+      entry_condition: mirror_state == weakened
+      beats:
+        - id: chapter3_intro
+          type: description
+          text: |
+            镜子虚弱了，但诅咒还未完全解除。你必须找到源头。
+        
+        - id: final_choice
+          type: choice
+          prompt: 你在阁楼找到一本日记。里面提到镜子的起源。你选择？
+          options:
+            - text: 烧毁日记和镜子
+              next: burn_everything
+              effects:
+                - sanity: -10
+            
+            - text: 封印镜子
+              next: seal_mirror
+              effects:
+                - sanity: +10
+
+        - id: burn_everything
+          type: ending
+          title: 火焰净化
+          text: |
+            火焰吞噬一切，诅咒随烟消散。你自由了，但房子化为灰烬。
+          outcome: neutral
+        
+        - id: seal_mirror
+          type: ending
+          title: 永恒封印
+          text: |
+            你用日记中的咒语封印镜子。它永沉阁楼。你带着秘密离开，过上平静生活。
+          outcome: good
+
+  # 结局定义
+  endings:
+    - id: ending_bad
+      title: 悲惨结局
+      text: |
+        你未能逃脱诅咒，永陷镜像。
+      score: 0
+    
+    - id: ending_neutral
+      title: 中性结局
+      text: |
+        你幸存，但付出巨大代价。
+      score: 50
+    
+    - id: ending_good
+      title: 完美结局
+      text: |
+        诅咒彻底解除，你重获新生。
+      score: 100

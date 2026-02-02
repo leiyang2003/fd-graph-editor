@@ -1,0 +1,1160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>有向图编辑器 - Graph Editor</title>
+  <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+      background: #161b22;
+      color: #e6edf3;
+      min-height: 100vh;
+      font-size: 14px;
+      -webkit-font-smoothing: antialiased;
+    }
+    .app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    .top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      height: 48px;
+      background: #21262d;
+      border-bottom: 1px solid #30363d;
+      flex-shrink: 0;
+    }
+    .top-bar-title {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 15px;
+      font-weight: 600;
+      color: #e6edf3;
+    }
+    .top-bar-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+    }
+    .top-bar-actions button {
+      padding: 6px 14px;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      background: #21262d;
+      color: #e6edf3;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background .15s, border-color .15s;
+    }
+    .top-bar-actions button:hover {
+      background: #30363d;
+      border-color: #484f58;
+    }
+    .top-bar-actions button.primary {
+      background: #238636;
+      color: #fff;
+      border-color: #238636;
+    }
+    .top-bar-actions button.primary:hover {
+      background: #2ea043;
+      border-color: #2ea043;
+    }
+    .main-row {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .left-bar {
+      width: 56px;
+      flex-shrink: 0;
+      background: #21262d;
+      border-right: 1px solid #30363d;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-top: 16px;
+      gap: 4px;
+    }
+    .left-bar .tool-group {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+    .left-bar button {
+      width: 40px;
+      height: 40px;
+      border: none;
+      border-radius: 8px;
+      background: transparent;
+      color: #8b949e;
+      font-size: 18px;
+      cursor: pointer;
+      transition: background .15s, color .15s;
+    }
+    .left-bar button:hover {
+      background: #30363d;
+      color: #e6edf3;
+    }
+    .left-bar button.primary { color: #58a6ff; }
+    .canvas-wrap {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      background: #0d1117;
+      background-image: radial-gradient(circle, #21262d 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+    .canvas-header {
+      padding: 12px 16px;
+      font-size: 13px;
+      color: #8b949e;
+      border-bottom: 1px solid #21262d;
+    }
+    .canvas-header strong { color: #e6edf3; }
+    #graph-container {
+      flex: 1;
+      min-height: 0;
+      background: transparent;
+    }
+    .node-legend {
+      margin: 16px 8px 0;
+      padding: 12px;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      font-size: 11px;
+      color: #8b949e;
+    }
+    .node-legend h4 {
+      margin: 0 0 8px 0;
+      font-size: 11px;
+      font-weight: 600;
+      color: #e6edf3;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .node-legend ul { list-style: none; margin: 0; padding: 0; }
+    .node-legend li {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .node-legend .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .node-legend .legend-hint {
+      margin: 8px 0 0 0;
+      font-size: 10px;
+      color: #6e7681;
+    }
+    .sidebar {
+      width: 280px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      background: #21262d;
+      border-left: 1px solid #30363d;
+      overflow: hidden;
+    }
+    .sidebar-section {
+      flex: 0 0 auto;
+      padding: 16px;
+      border-bottom: 1px solid #30363d;
+      overflow-y: auto;
+    }
+    .sidebar-section:last-of-type { flex: 1; min-height: 100px; border-bottom: none; }
+    .sidebar-section h4 {
+      margin: 0 0 12px 0;
+      font-size: 12px;
+      font-weight: 600;
+      color: #8b949e;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .node-display-card {
+      background: #161b22;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 13px;
+      border: 1px solid #30363d;
+    }
+    .node-display-card .n-id { font-weight: 600; color: #58a6ff; margin-bottom: 6px; }
+    .node-display-card .n-label { color: #e6edf3; white-space: pre-wrap; word-break: break-word; line-height: 1.5; }
+    .node-display-card .n-color { display: inline-block; width: 14px; height: 14px; border-radius: 4px; margin-top: 8px; vertical-align: middle; border: 1px solid #30363d; }
+    .sidebar-placeholder { color: #8b949e; font-size: 13px; line-height: 1.5; }
+    .related-list { list-style: none; margin: 0; padding: 0; }
+    .related-list li {
+      padding: 8px 10px;
+      margin-bottom: 6px;
+      background: #161b22;
+      border-radius: 6px;
+      font-size: 12px;
+      color: #c9d1d9;
+      border: 1px solid #30363d;
+    }
+    .related-list li .dir { color: #58a6ff; font-weight: 500; }
+    .related-list li .edge-label { color: #3fb950; margin-left: 4px; }
+    .sidebar-legend { flex: 0 0 auto; }
+    .legend-list { list-style: none; margin: 0; padding: 0; font-size: 12px; }
+    .legend-list li { margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+    .legend-swatch {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .legend-swatch + span { color: #c9d1d9; font-size: 12px; }
+    .toolbar-inline {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      background: #21262d;
+      border-bottom: 1px solid #30363d;
+    }
+    .toolbar-inline button {
+      padding: 6px 12px;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      background: #21262d;
+      color: #e6edf3;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background .15s, border-color .15s;
+    }
+    .toolbar-inline button:hover {
+      background: #30363d;
+      border-color: #484f58;
+    }
+    .toolbar-inline button.primary { background: #238636; color: #fff; border-color: #238636; }
+    .toolbar-inline button.primary:hover { background: #2ea043; border-color: #2ea043; }
+    .toolbar-inline button.danger:hover { background: #da3633; color: #fff; border-color: #da3633; }
+    .toolbar-inline .sep { width: 1px; height: 20px; background: #30363d; margin: 0 4px; }
+    .modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.6);
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    .modal.show { display: flex; }
+    .modal-content {
+      background: #21262d;
+      padding: 24px;
+      border-radius: 12px;
+      min-width: 340px;
+      max-width: 90vw;
+      border: 1px solid #30363d;
+    }
+    .modal-content h3 { margin-top: 0; margin-bottom: 16px; font-size: 16px; font-weight: 600; color: #e6edf3; }
+    .modal-content label { display: block; margin: 12px 0 6px; font-size: 12px; font-weight: 500; color: #8b949e; }
+    .modal-content input { width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid #30363d; background: #161b22; color: #e6edf3; font-size: 13px; }
+    .modal-content input:focus { outline: none; border-color: #58a6ff; }
+    .modal-actions { margin-top: 20px; display: flex; gap: 8px; justify-content: flex-end; }
+    .modal-actions button { padding: 8px 16px; border-radius: 6px; font-weight: 500; cursor: pointer; font-size: 13px; border: 1px solid #30363d; background: #21262d; color: #e6edf3; }
+    .modal-actions button.primary { background: #238636; color: #fff; border-color: #238636; }
+    .modal-actions button.primary:hover { background: #2ea043; }
+    .btn-edit-node { margin-top: 10px; padding: 8px 14px; border-radius: 6px; background: #388bfd; color: #fff; border: none; font-size: 12px; font-weight: 500; cursor: pointer; }
+    .btn-edit-node:hover { background: #58a6ff; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="top-bar">
+      <span class="top-bar-title">叙事流程图编辑器</span>
+      <div class="top-bar-actions">
+        <button type="button" id="btn-fit" title="适应画布">⊡ 适应画布</button>
+        <button type="button" id="btn-main-line" title="从起始点到好结局的主线">📖 故事主线</button>
+        <button type="button" id="btn-show-all-top" style="display:none" title="显示全部节点">显示全部</button>
+        <button type="button" id="btn-load-sample" class="primary">▶ 加载示例</button>
+      </div>
+    </header>
+    <div class="main-row">
+      <aside class="left-bar">
+        <div class="tool-group">
+          <button type="button" id="btn-add-node" class="primary" title="添加节点">＋</button>
+          <button type="button" id="btn-add-edge" title="连接节点">⇢</button>
+          <button type="button" id="btn-edit-node" title="编辑节点">✎</button>
+          <button type="button" id="btn-delete" title="删除">⌫</button>
+          <button type="button" id="btn-show-all" style="display:none" title="显示全部">⊞</button>
+        </div>
+        <div class="node-legend">
+          <h4>节点说明</h4>
+          <ul>
+            <li><span class="dot" style="background:#3fb950"></span><span>🚩 起始点</span></li>
+            <li><span class="dot" style="background:#8b949e"></span><span>📄 剧情节点</span></li>
+            <li><span class="dot" style="background:#a371f7"></span><span>🔀 分岐点</span></li>
+            <li><span class="dot" style="background:#f85149"></span><span>🎯 结局</span></li>
+          </ul>
+          <p class="legend-hint">从左向右排布 · 直线连接</p>
+        </div>
+      </aside>
+      <div class="canvas-wrap">
+        <div class="canvas-header">
+          <strong id="canvas-project-title">未命名叙事项目</strong><br />
+          <span id="canvas-status">● 未保存 | 环境：核心编辑器</span>
+        </div>
+        <div id="graph-container"></div>
+      </div>
+      <aside class="sidebar">
+        <div class="sidebar-section">
+          <h4>节点配置</h4>
+          <div id="node-display-area">
+            <p class="sidebar-placeholder">点击图中节点，在此显示并编辑节点信息</p>
+          </div>
+          <button type="button" id="sidebar-edit-btn" class="btn-edit-node" style="display:none">✎ 编辑此节点</button>
+        </div>
+        <div class="sidebar-section">
+          <h4>相关节点</h4>
+          <div id="related-nodes-area">
+            <p class="sidebar-placeholder">选中节点后显示入边、出边及相邻节点</p>
+          </div>
+        </div>
+        <div class="sidebar-section sidebar-legend">
+          <h4>颜色说明</h4>
+          <ul class="legend-list">
+            <li><span class="legend-swatch" style="background:#3fb950"></span><span>起始点</span></li>
+            <li><span class="legend-swatch" style="background:#8b949e"></span><span>剧情节点</span></li>
+            <li><span class="legend-swatch" style="background:#a371f7"></span><span>分岐点</span></li>
+            <li><span class="legend-swatch" style="background:#f85149"></span><span>坏结局</span></li>
+            <li><span class="legend-swatch" style="background:#d29922"></span><span>中性结局</span></li>
+            <li><span class="legend-swatch" style="background:#3fb950"></span><span>好结局</span></li>
+          </ul>
+        </div>
+      </aside>
+    </div>
+    <div class="toolbar-inline">
+      <button type="button" id="btn-export">导出 JSON</button>
+      <button type="button" id="btn-import">导入 JSON</button>
+      <input type="file" id="file-import" accept=".json" style="display:none" />
+    </div>
+  </div>
+
+  <div id="modal-node" class="modal">
+    <div class="modal-content">
+      <h3>节点</h3>
+      <label>ID（唯一）</label>
+      <input type="text" id="node-id" placeholder="例如 intro" />
+      <label>显示标签（可多行）</label>
+      <input type="text" id="node-label" placeholder="例如 intro\n描述发现镜子" />
+      <label>节点颜色</label>
+      <input type="color" id="node-color" value="#8b949e" />
+      <div class="modal-actions">
+        <button type="button" id="node-cancel">取消</button>
+        <button type="button" id="node-ok" class="primary">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-edge" class="modal">
+    <div class="modal-content">
+      <h3>边</h3>
+      <label>起点节点 ID</label>
+      <input type="text" id="edge-from" placeholder="例如 first_choice" />
+      <label>终点节点 ID</label>
+      <input type="text" id="edge-to" placeholder="例如 clean" />
+      <label>边上的标签（可选）</label>
+      <input type="text" id="edge-label" placeholder="例如 擦" />
+      <div class="modal-actions">
+        <button type="button" id="edge-cancel">取消</button>
+        <button type="button" id="edge-ok" class="primary">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-edit" class="modal">
+    <div class="modal-content">
+      <h3>编辑节点</h3>
+      <label>ID（只读）</label>
+      <input type="text" id="edit-id" readonly />
+      <label>显示标签</label>
+      <input type="text" id="edit-label" />
+      <label>节点颜色</label>
+      <input type="color" id="edit-color" value="#8b949e" />
+      <div class="modal-actions">
+        <button type="button" id="edit-cancel">取消</button>
+        <button type="button" id="edit-ok" class="primary">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const container = document.getElementById("graph-container");
+      const DATA = {
+        nodes: new vis.DataSet([]),
+        edges: new vis.DataSet([])
+      };
+
+      const options = {
+        nodes: {
+          shape: "box",
+          font: { size: 14, color: "#e4e4e7", face: "PingFang SC, Microsoft YaHei, sans-serif" },
+          borderWidth: 2,
+          borderWidthSelected: 3,
+          color: { background: "#8b949e", border: "#6e7681" },
+          margin: 10
+        },
+        edges: {
+          arrows: { to: { enabled: true, scaleFactor: 0.8 } },
+          color: { color: "#6e7681", highlight: "#58a6ff" },
+          font: { size: 12, color: "#a9b1d6", align: "middle" },
+          smooth: { type: "straight" }
+        },
+        layout: {
+          hierarchical: {
+            enabled: true,
+            direction: "LR",
+            sortMethod: "directed",
+            nodeSpacing: 150,
+            levelSeparation: 150
+          }
+        },
+        physics: {
+          enabled: true,
+          solver: "hierarchicalRepulsion",
+          hierarchicalRepulsion: {
+            direction: "LR",
+            centralGravity: 0.0,
+            springLength: 180,
+            springConstant: 0.01,
+            nodeDistance: 180,
+            damping: 0.09,
+            avoidOverlap: 0.3
+          }
+        },
+        interaction: {
+          dragNodes: true,
+          dragView: true,
+          zoomView: true,
+          selectConnectedEdges: true,
+          multiselect: true
+        }
+      };
+
+      const network = new vis.Network(container, DATA, options);
+
+      // 打开编辑节点弹窗（任一节点都可编辑：双击节点或选中后点「编辑节点」）
+      function openEditModal(nodeId) {
+        const n = DATA.nodes.get(nodeId);
+        if (!n) return;
+        document.getElementById("edit-id").value = n.id;
+        document.getElementById("edit-label").value = n.label || "";
+        document.getElementById("edit-color").value = (n.color && n.color.background) ? n.color.background : "#8b949e";
+        showModal("modal-edit");
+      }
+
+      network.on("doubleClick", function (params) {
+        if (params.nodes.length === 1) openEditModal(params.nodes[0]);
+        else if (params.nodes.length === 0) {
+          fitFullGraphToFill();
+        }
+      });
+
+      let currentSelectedNodeId = null;
+      let inFocusMode = false;
+      let fullNodesBackup = [];
+      let fullEdgesBackup = [];
+      let inMainLineMode = false;
+      let mainLineBackup = { nodes: [], edges: [] };
+
+      function getPath(startId, endId, edges) {
+        var adj = {};
+        edges.forEach(function (e) {
+          if (!adj[e.from]) adj[e.from] = [];
+          adj[e.from].push(e.to);
+        });
+        var q = [{ id: startId, path: [startId] }];
+        var seen = new Set([startId]);
+        while (q.length > 0) {
+          var cur = q.shift();
+          if (cur.id === endId) return cur.path;
+          (adj[cur.id] || []).forEach(function (to) {
+            if (seen.has(to)) return;
+            seen.add(to);
+            q.push({ id: to, path: cur.path.concat(to) });
+          });
+        }
+        return null;
+      }
+
+      var MAIN_LINE_Y = 0;
+
+      function computeMainLineLayout(nodes, edges) {
+        var path = getPath("Start", "GOOD", edges);
+        if (!path || path.length === 0) return null;
+        var pathSet = new Set(path);
+        var pathIndex = {};
+        path.forEach(function (id, i) { pathIndex[id] = i; });
+        var pos = {};
+        var mainSpacing = 220;
+        var branchSpacing = 200;  // 同一主线节点分出的多条支线水平间距，避免紧挨
+        var branchY = 200;
+        path.forEach(function (id, i) {
+          pos[id] = { x: i * mainSpacing, y: MAIN_LINE_Y };
+        });
+        var adjOut = {};
+        var adjIn = {};
+        edges.forEach(function (e) {
+          if (!adjOut[e.from]) adjOut[e.from] = [];
+          adjOut[e.from].push(e.to);
+          if (!adjIn[e.to]) adjIn[e.to] = [];
+          adjIn[e.to].push(e.from);
+        });
+        var aboveCount = {};
+        var belowCount = {};
+        path.forEach(function (_, i) { aboveCount[i] = 0; belowCount[i] = 0; });
+        function placeBranch(nodeId, pathIdx, side) {
+          if (pos[nodeId] != null) return;
+          var j = side === "above" ? aboveCount[pathIdx]++ : belowCount[pathIdx]++;
+          var baseX = pathIdx * mainSpacing;
+          pos[nodeId] = { x: baseX + (j - 0.5) * branchSpacing, y: side === "above" ? -branchY : branchY };
+        }
+        path.forEach(function (pathId, i) {
+          (adjOut[pathId] || []).forEach(function (to) {
+            if (!pathSet.has(to)) placeBranch(to, i, "above");
+          });
+          (adjIn[pathId] || []).forEach(function (from) {
+            if (!pathSet.has(from)) placeBranch(from, i, "below");
+          });
+        });
+        var remaining = nodes.filter(function (n) { return !pathSet.has(n.id) && pos[n.id] == null; });
+        var level = {};
+        path.forEach(function (id) { level[id] = 0; });
+        var q = path.slice();
+        var qi = 0;
+        while (qi < q.length) {
+          var cur = q[qi++];
+          var curLevel = level[cur];
+          (adjOut[cur] || []).concat(adjIn[cur] || []).forEach(function (next) {
+            if (level[next] != null) return;
+            level[next] = curLevel + 1;
+            q.push(next);
+          });
+        }
+        remaining.forEach(function (n, idx) {
+          var id = n.id;
+          if (pos[id] != null) return;
+          var neighbors = (adjOut[id] || []).concat(adjIn[id] || []);
+          var best = null;
+          neighbors.forEach(function (nb) {
+            if (pos[nb] == null) return;
+            if (best == null || (level[nb] != null && level[nb] < level[best])) best = nb;
+          });
+          if (best != null) {
+            var p = pos[best];
+            var ly = p.y >= 0 ? 1 : -1;
+            var dx = (idx % 3 - 1) * 110;  // 深层支线节点水平错开距离
+            pos[id] = { x: p.x + dx, y: p.y + ly * branchY };
+          } else {
+            pos[id] = { x: 0, y: branchY * 2 };
+          }
+        });
+        return pos;
+      }
+
+      function applyMainLineLayout() {
+        var edges = DATA.edges.get();
+        var path = getPath("Start", "GOOD", edges);
+        if (!path || path.length === 0) return false;
+        network.setOptions({
+          physics: { enabled: false },
+          layout: { hierarchical: { enabled: false } }
+        });
+        var nodes = DATA.nodes.get();
+        var pos = computeMainLineLayout(nodes, edges);
+        if (!pos) return false;
+        var updates = nodes.map(function (n) {
+          var p = pos[n.id];
+          if (!p) return n;
+          return Object.assign({}, n, { x: p.x, y: p.y, fixed: true });
+        });
+        DATA.nodes.clear();
+        DATA.nodes.add(updates);
+        return true;
+      }
+
+      function enterMainLineMode() {
+        if (inFocusMode) {
+          restoreFullGraph();
+          clearSidebar();
+          document.getElementById("btn-show-all").style.display = "none";
+          network.selectNodes([]);
+        }
+        var edges = DATA.edges.get();
+        var path = getPath("Start", "GOOD", edges);
+        if (!path || path.length === 0) {
+          alert("未找到从「起始点」到「好结局」的路线，请先加载示例或确保图中存在 Start 与 GOOD 节点及连通路径。");
+          return;
+        }
+        network.setOptions({
+          physics: { enabled: false },
+          layout: { hierarchical: { enabled: false } }
+        });
+        var nodes = DATA.nodes.get();
+        var nodeMap = {};
+        nodes.forEach(function (n) { nodeMap[n.id] = n; });
+        mainLineBackup = { nodes: nodes.map(function (n) { return Object.assign({}, n); }), edges: edges.map(function (e) { return Object.assign({}, e); }) };
+        var spacing = 220;
+        var pathNodes = path.map(function (id, i) {
+          var n = nodeMap[id];
+          if (!n) return null;
+          return {
+            id: n.id,
+            label: n.label,
+            color: n.color,
+            x: i * spacing,
+            y: MAIN_LINE_Y,
+            fixed: true
+          };
+        }).filter(Boolean);
+        var pathEdges = [];
+        for (var i = 0; i < path.length - 1; i++) {
+          pathEdges.push({ from: path[i], to: path[i + 1] });
+        }
+        DATA.nodes.clear();
+        DATA.nodes.add(pathNodes);
+        DATA.edges.clear();
+        DATA.edges.add(pathEdges);
+        inMainLineMode = true;
+        document.getElementById("btn-show-all-top").style.display = "inline-block";
+        clearSidebar();
+        setTimeout(fitFullGraphToFill, 80);
+      }
+
+      function restoreFromMainLine() {
+        if (!inMainLineMode) return;
+        network.setOptions({
+          physics: { enabled: true },
+          layout: { hierarchical: { enabled: true } }
+        });
+        DATA.nodes.clear();
+        DATA.nodes.add(mainLineBackup.nodes.map(function (n) {
+          var o = Object.assign({}, n);
+          delete o.x;
+          delete o.y;
+          delete o.fixed;
+          return o;
+        }));
+        DATA.edges.clear();
+        DATA.edges.add(mainLineBackup.edges.map(function (e) { return Object.assign({}, e); }));
+        inMainLineMode = false;
+        mainLineBackup = { nodes: [], edges: [] };
+        document.getElementById("btn-show-all-top").style.display = "none";
+        setTimeout(fitFullGraphToFill, 100);
+      }
+
+      function fitFullGraphToFill() {
+        var nodeIds = DATA.nodes.get().map(function (n) { return n.id; });
+        if (nodeIds.length === 0) return;
+        var W = container.clientWidth || 800;
+        var H = container.clientHeight || 600;
+        var bbox = null;
+        try { bbox = network.getBoundingBox(nodeIds); } catch (e) {}
+        if (!bbox || bbox.left == null) {
+          var positions = network.getPositions();
+          var minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
+          nodeIds.forEach(function (id) {
+            var p = positions[id];
+            if (p) {
+              minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+              minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+            }
+          });
+          if (minX <= maxX && minY <= maxY) {
+            var pad = 60;
+            bbox = { left: minX - pad, right: maxX + pad, top: minY - pad, bottom: maxY + pad };
+          }
+        }
+        if (!bbox || bbox.left == null) { network.fit({ animation: { duration: 300 } }); return; }
+        var bw = (bbox.right - bbox.left) || 1;
+        var bh = (bbox.bottom - bbox.top) || 1;
+        var cx = (bbox.left + bbox.right) / 2;
+        var cy = (bbox.top + bbox.bottom) / 2;
+        var scaleX = W / bw;
+        var scaleY = H / bh;
+        var scale = Math.min(scaleX, scaleY) * 0.96;
+        scale = Math.max(0.05, Math.min(5, scale));
+        network.moveTo({
+          position: { x: cx, y: cy },
+          scale: scale,
+          animation: { duration: 400, easingFunction: "easeInOutQuad" }
+        });
+      }
+
+      function getRelatedEdges(nodeId, edgesList) {
+        const edges = edgesList != null ? edgesList : DATA.edges.get();
+        return edges.filter(function (e) { return e.from === nodeId || e.to === nodeId; });
+      }
+
+      function enterFocusMode(focusNodeId) {
+        const fullEdges = inFocusMode ? fullEdgesBackup : DATA.edges.get();
+        const fullNodes = inFocusMode ? fullNodesBackup : DATA.nodes.get();
+        if (!inFocusMode) {
+          fullNodesBackup = fullNodes.map(function (n) { return Object.assign({}, n); });
+          fullEdgesBackup = fullEdges.map(function (e) { return Object.assign({}, e); });
+        }
+        const relatedEdges = getRelatedEdges(focusNodeId, fullEdges);
+        const relatedIds = new Set([focusNodeId]);
+        relatedEdges.forEach(function (e) {
+          relatedIds.add(e.from);
+          relatedIds.add(e.to);
+        });
+        const subsetNodeIds = Array.from(relatedIds);
+        const subsetNodes = fullNodesBackup.filter(function (n) { return relatedIds.has(n.id); });
+        const subsetEdges = fullEdgesBackup.filter(function (e) {
+          return relatedIds.has(e.from) && relatedIds.has(e.to);
+        });
+        DATA.nodes.clear();
+        DATA.nodes.add(subsetNodes);
+        DATA.edges.clear();
+        DATA.edges.add(subsetEdges);
+        inFocusMode = true;
+        network.setOptions({ physics: { enabled: true } });
+        var focusDone = false;
+        function centerSubgraphAt40Percent() {
+          if (focusDone) return;
+          focusDone = true;
+          network.setOptions({ physics: { enabled: false } });
+          var W = container.clientWidth || 800;
+          var H = container.clientHeight || 600;
+          var bbox = null;
+          try {
+            bbox = network.getBoundingBox(subsetNodeIds);
+          } catch (e) {}
+          if (!bbox || bbox.left == null) {
+            var positions = network.getPositions();
+            var minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
+            subsetNodeIds.forEach(function (id) {
+              var p = positions[id];
+              if (p) {
+                minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+                minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+              }
+            });
+            if (minX <= maxX && minY <= maxY) {
+              var pad = 80;
+              bbox = { left: minX - pad, right: maxX + pad, top: minY - pad, bottom: maxY + pad };
+            }
+          }
+          if (!bbox || bbox.left == null) {
+            var pos = network.getPositions()[focusNodeId];
+            if (pos) network.moveTo({ position: pos, scale: 1.2, animation: { duration: 300, easingFunction: "easeInOutQuad" } });
+            return;
+          }
+          var bw = (bbox.right - bbox.left) || 1;
+          var bh = (bbox.bottom - bbox.top) || 1;
+          var cx = (bbox.left + bbox.right) / 2;
+          var cy = (bbox.top + bbox.bottom) / 2;
+          var targetArea = 0.4 * W * H;
+          var scale = Math.sqrt(targetArea / (bw * bh));
+          scale = Math.max(0.1, Math.min(3, scale));
+          network.moveTo({
+            position: { x: cx, y: cy },
+            scale: scale,
+            animation: { duration: 300, easingFunction: "easeInOutQuad" }
+          });
+        }
+        network.once("stabilizationIterationsDone", centerSubgraphAt40Percent);
+        setTimeout(centerSubgraphAt40Percent, 650);
+      }
+
+      function restoreFullGraph() {
+        if (!inFocusMode) return;
+        network.setOptions({ physics: { enabled: true } });
+        var curNodes = DATA.nodes.get();
+        var curIds = new Set(curNodes.map(function (n) { return n.id; }));
+        var merged = fullNodesBackup.map(function (n) {
+          var cur = curIds.has(n.id) ? DATA.nodes.get(n.id) : null;
+          if (cur) return { id: n.id, label: cur.label, color: cur.color };
+          return Object.assign({}, n);
+        });
+        DATA.nodes.clear();
+        DATA.nodes.add(merged);
+        DATA.edges.clear();
+        DATA.edges.add(fullEdgesBackup.map(function (e) { return Object.assign({}, e); }));
+        inFocusMode = false;
+        fullNodesBackup = [];
+        fullEdgesBackup = [];
+      }
+
+      function updateSidebar(nodeId) {
+        currentSelectedNodeId = nodeId;
+        const n = DATA.nodes.get(nodeId);
+        if (!n) return clearSidebar();
+
+        const label = (n.label != null && n.label !== "") ? n.label : n.id;
+        const color = (n.color && n.color.background) ? n.color.background : "#414868";
+
+        document.getElementById("node-display-area").innerHTML =
+          "<div class=\"node-display-card\">" +
+          "<div class=\"n-id\">" + escapeHtml(n.id) + "</div>" +
+          "<div class=\"n-label\">" + escapeHtml(label) + "</div>" +
+          "<span class=\"n-color\" style=\"background:" + color + "\" title=\"" + color + "\"></span>" +
+          "</div>";
+        document.getElementById("sidebar-edit-btn").style.display = "inline-block";
+        document.getElementById("sidebar-edit-btn").onclick = function () { openEditModal(nodeId); };
+
+        const related = getRelatedEdges(nodeId);
+        let html = "<ul class=\"related-list\">";
+        if (related.length === 0) {
+          html += "<li>无入边/出边</li>";
+        } else {
+          related.forEach(function (e) {
+            const fromNode = DATA.nodes.get(e.from);
+            const toNode = DATA.nodes.get(e.to);
+            const fromLabel = (fromNode && fromNode.label) ? fromNode.label : e.from;
+            const toLabel = (toNode && toNode.label) ? toNode.label : e.to;
+            const dir = e.from === nodeId ? "出边 →" : "入边 ←";
+            const other = e.from === nodeId ? toLabel : fromLabel;
+            const edgeLabel = (e.label && e.label !== "") ? " <span class=\"edge-label\">[" + escapeHtml(e.label) + "]</span>" : "";
+            html += "<li><span class=\"dir\">" + dir + "</span> " + escapeHtml(other) + edgeLabel + "</li>";
+          });
+        }
+        html += "</ul>";
+        document.getElementById("related-nodes-area").innerHTML = html;
+      }
+
+      function clearSidebar() {
+        currentSelectedNodeId = null;
+        document.getElementById("node-display-area").innerHTML =
+          "<p class=\"sidebar-placeholder\">点击图中节点，在此显示节点信息</p>";
+        document.getElementById("sidebar-edit-btn").style.display = "none";
+        document.getElementById("related-nodes-area").innerHTML =
+          "<p class=\"sidebar-placeholder\">选中节点后显示其入边、出边及相邻节点</p>";
+      }
+
+      function escapeHtml(s) {
+        if (s == null) return "";
+        const div = document.createElement("div");
+        div.textContent = s;
+        return div.innerHTML;
+      }
+
+      network.on("click", function (params) {
+        if (params.nodes.length === 1) {
+          var clickedNodeId = params.nodes[0];
+          network.selectNodes([clickedNodeId]);
+          updateSidebar(clickedNodeId);
+          if (inMainLineMode) return;
+          enterFocusMode(clickedNodeId);
+          document.getElementById("btn-show-all").style.display = "inline-block";
+        } else {
+          if (inMainLineMode) return;
+          restoreFullGraph();
+          clearSidebar();
+          document.getElementById("btn-show-all").style.display = "none";
+          network.selectNodes([]);
+        }
+      });
+
+      network.on("deselectNode", function () { clearSidebar(); });
+
+      // ---------- 示例图数据（与 Run.py 对应） ----------
+      const NODE_ICONS = { start: "🚩", event: "📄", choice: "🔀", end: "🎯" };
+      const SAMPLE = {
+        nodes: [
+          { id: "Start", label: "🚩\n开始\n(sanity=100, dusty)", color: "#3fb950" },
+          { id: "intro", label: "📄\nintro\n描述发现镜子", color: "#8b949e" },
+          { id: "first_choice", label: "🔀\nfirst_choice\n怎么处理镜子？", color: "#a371f7" },
+          { id: "clean", label: "📄\n擦干净它\n→ activated, sanity-10", color: "#8b949e" },
+          { id: "ignore", label: "📄\n忽略\n→ night", color: "#8b949e" },
+          { id: "shatter_early", label: "🎯\n直接砸碎\n→ BAD END", color: "#f85149" },
+          { id: "night_event", label: "📄\nnight_event\n强制激活", color: "#8b949e" },
+          { id: "chapter2_intro", label: "📄\nchapter2_intro\n低语开始", color: "#8b949e" },
+          { id: "investigate", label: "🔀\ninvestigate\n如何调查？", color: "#a371f7" },
+          { id: "touch", label: "📄\n触摸镜面", color: "#8b949e" },
+          { id: "research", label: "📄\n研究符号", color: "#8b949e" },
+          { id: "seek_help", label: "📄\n求助（循环）", color: "#8b949e" },
+          { id: "mirror_world", label: "📄\nmirror_world\n三扇门", color: "#8b949e" },
+          { id: "past_door", label: "📄\n过去 → fire_clue", color: "#8b949e" },
+          { id: "present_door", label: "🎯\n现在 → NEUTRAL END", color: "#d29922" },
+          { id: "future_door", label: "📄\n未来 → escape", color: "#8b949e" },
+          { id: "ritual_choice", label: "🔀\nritual_choice\n用银十字？", color: "#a371f7" },
+          { id: "perform_ritual", label: "🎯\n执行 → GOOD END", color: "#3fb950" },
+          { id: "hesitation", label: "🎯\n犹豫 → POSSESSED END", color: "#f85149" },
+          { id: "chapter3", label: "📄\nchapter3\n最终对抗", color: "#8b949e" },
+          { id: "burn", label: "🎯\n烧毁 → NEUTRAL", color: "#d29922" },
+          { id: "seal", label: "🎯\n封印 → GOOD", color: "#3fb950" },
+          { id: "BAD", label: "🎯\nBAD END\n(多种)", color: "#f85149" },
+          { id: "NEUTRAL", label: "🎯\nNEUTRAL", color: "#d29922" },
+          { id: "GOOD", label: "🎯\nGOOD END", color: "#3fb950" }
+        ],
+        edges: [
+          { from: "Start", to: "intro" },
+          { from: "intro", to: "first_choice" },
+          { from: "first_choice", to: "clean", label: "擦" },
+          { from: "first_choice", to: "ignore", label: "忽略" },
+          { from: "first_choice", to: "shatter_early", label: "砸" },
+          { from: "ignore", to: "night_event" },
+          { from: "night_event", to: "clean" },
+          { from: "clean", to: "chapter2_intro" },
+          { from: "chapter2_intro", to: "investigate" },
+          { from: "investigate", to: "touch", label: "触摸" },
+          { from: "investigate", to: "research", label: "研究" },
+          { from: "investigate", to: "seek_help", label: "求助" },
+          { from: "seek_help", to: "investigate" },
+          { from: "touch", to: "mirror_world" },
+          { from: "mirror_world", to: "past_door" },
+          { from: "mirror_world", to: "present_door" },
+          { from: "mirror_world", to: "future_door" },
+          { from: "research", to: "ritual_choice" },
+          { from: "ritual_choice", to: "perform_ritual" },
+          { from: "ritual_choice", to: "hesitation" },
+          { from: "perform_ritual", to: "chapter3" },
+          { from: "chapter3", to: "burn" },
+          { from: "chapter3", to: "seal" },
+          { from: "shatter_early", to: "BAD" },
+          { from: "present_door", to: "NEUTRAL" },
+          { from: "hesitation", to: "BAD" },
+          { from: "burn", to: "NEUTRAL" },
+          { from: "seal", to: "GOOD" }
+        ]
+      };
+
+      function nodeColor(hex) {
+        return { background: hex, border: hex };
+      }
+
+      function loadSample() {
+        inFocusMode = false;
+        inMainLineMode = false;
+        fullNodesBackup = [];
+        fullEdgesBackup = [];
+        mainLineBackup = { nodes: [], edges: [] };
+        document.getElementById("btn-show-all").style.display = "none";
+        document.getElementById("btn-show-all-top").style.display = "none";
+        clearSidebar();
+        network.setOptions({ physics: { enabled: true } });
+        DATA.nodes.clear();
+        DATA.edges.clear();
+        SAMPLE.nodes.forEach(function (n) {
+          DATA.nodes.add({
+            id: n.id,
+            label: n.label,
+            color: nodeColor(n.color)
+          });
+        });
+        SAMPLE.edges.forEach(function (e) {
+          DATA.edges.add({
+            from: e.from,
+            to: e.to,
+            label: e.label || ""
+          });
+        });
+        if (applyMainLineLayout()) {
+          setTimeout(fitFullGraphToFill, 150);
+        } else {
+          var initialFitted = false;
+          function fitAfterSpread() {
+            if (initialFitted) return;
+            initialFitted = true;
+            setTimeout(fitFullGraphToFill, 100);
+          }
+          network.setOptions({ physics: { enabled: true } });
+          network.once("stabilizationIterationsDone", function () {
+            setTimeout(fitAfterSpread, 400);
+          });
+          setTimeout(fitAfterSpread, 1400);
+        }
+      }
+
+      function showModal(id) {
+        document.getElementById(id).classList.add("show");
+      }
+      function hideModal(id) {
+        document.getElementById(id).classList.remove("show");
+      }
+
+      document.getElementById("btn-add-node").onclick = function () {
+        document.getElementById("node-id").value = "";
+        document.getElementById("node-label").value = "";
+        document.getElementById("node-color").value = "#8b949e";
+        showModal("modal-node");
+      };
+
+      document.getElementById("node-cancel").onclick = function () { hideModal("modal-node"); };
+      document.getElementById("node-ok").onclick = function () {
+        const id = document.getElementById("node-id").value.trim();
+        const label = document.getElementById("node-label").value.trim() || id;
+        const color = document.getElementById("node-color").value;
+        if (!id) return;
+        if (DATA.nodes.get(id)) {
+          alert("已存在 ID：" + id);
+          return;
+        }
+        DATA.nodes.add({ id: id, label: label, color: nodeColor(color) });
+        hideModal("modal-node");
+      };
+
+      document.getElementById("btn-add-edge").onclick = function () {
+        document.getElementById("edge-from").value = "";
+        document.getElementById("edge-to").value = "";
+        document.getElementById("edge-label").value = "";
+        showModal("modal-edge");
+      };
+
+      document.getElementById("edge-cancel").onclick = function () { hideModal("modal-edge"); };
+      document.getElementById("edge-ok").onclick = function () {
+        const from = document.getElementById("edge-from").value.trim();
+        const to = document.getElementById("edge-to").value.trim();
+        const label = document.getElementById("edge-label").value.trim();
+        if (!from || !to) return;
+        if (!DATA.nodes.get(from)) { alert("起点节点不存在：" + from); return; }
+        if (!DATA.nodes.get(to)) { alert("终点节点不存在：" + to); return; }
+        DATA.edges.add({ from: from, to: to, label: label });
+        hideModal("modal-edge");
+      };
+
+      document.getElementById("btn-edit-node").onclick = function () {
+        const ids = network.getSelectedNodes();
+        if (ids.length !== 1) {
+          alert("请先选中一个节点再点击「编辑节点」，或直接双击节点编辑。");
+          return;
+        }
+        openEditModal(ids[0]);
+      };
+
+      document.getElementById("edit-cancel").onclick = function () { hideModal("modal-edit"); };
+      document.getElementById("edit-ok").onclick = function () {
+        const id = document.getElementById("edit-id").value;
+        const label = document.getElementById("edit-label").value.trim();
+        const color = document.getElementById("edit-color").value;
+        DATA.nodes.update({ id: id, label: label || id, color: nodeColor(color) });
+        hideModal("modal-edit");
+        if (currentSelectedNodeId === id) updateSidebar(id);
+      };
+
+      document.getElementById("btn-delete").onclick = function () {
+        const nodes = network.getSelectedNodes();
+        const edges = network.getSelectedEdges();
+        edges.forEach(function (eid) {
+          DATA.edges.remove(eid);
+          if (inFocusMode) fullEdgesBackup = fullEdgesBackup.filter(function (e) { return e.id !== eid; });
+        });
+        nodes.forEach(function (nid) {
+          DATA.edges.get().filter(function (e) { return e.from === nid || e.to === nid; }).forEach(function (e) {
+            DATA.edges.remove(e.id);
+            if (inFocusMode) fullEdgesBackup = fullEdgesBackup.filter(function (x) { return x.id !== e.id; });
+          });
+          DATA.nodes.remove(nid);
+          if (inFocusMode) fullNodesBackup = fullNodesBackup.filter(function (n) { return n.id !== nid; });
+        });
+      };
+
+      document.getElementById("btn-show-all").onclick = function () {
+        restoreFullGraph();
+        clearSidebar();
+        this.style.display = "none";
+        network.selectNodes([]);
+        setTimeout(fitFullGraphToFill, 80);
+      };
+
+      document.getElementById("btn-load-sample").onclick = loadSample;
+
+      document.getElementById("btn-fit").onclick = function () {
+        if (inMainLineMode) {
+          restoreFromMainLine();
+          return;
+        }
+        if (inFocusMode) {
+          restoreFullGraph();
+          clearSidebar();
+          document.getElementById("btn-show-all").style.display = "none";
+          network.selectNodes([]);
+        }
+        fitFullGraphToFill();
+      };
+
+      document.getElementById("btn-main-line").onclick = enterMainLineMode;
+
+      document.getElementById("btn-show-all-top").onclick = function () {
+        restoreFromMainLine();
+      };
+
+      document.getElementById("btn-export").onclick = function () {
+        const out = {
+          nodes: DATA.nodes.get().map(function (n) {
+            return {
+              id: n.id,
+              label: n.label,
+              color: (n.color && n.color.background) ? n.color.background : undefined
+            };
+          }),
+          edges: DATA.edges.get().map(function (e) {
+            return { from: e.from, to: e.to, label: e.label || undefined };
+          })
+        };
+        const blob = new Blob([JSON.stringify(out, null, 2)], { type: "application/json" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "graph.json";
+        a.click();
+        URL.revokeObjectURL(a.href);
+      };
+
+      document.getElementById("btn-import").onclick = function () {
+        document.getElementById("file-import").click();
+      };
+      document.getElementById("file-import").onchange = function () {
+        const f = this.files[0];
+        if (!f) return;
+        const r = new FileReader();
+        r.onload = function () {
+          try {
+            inFocusMode = false;
+            inMainLineMode = false;
+            fullNodesBackup = [];
+            fullEdgesBackup = [];
+            mainLineBackup = { nodes: [], edges: [] };
+            document.getElementById("btn-show-all").style.display = "none";
+            document.getElementById("btn-show-all-top").style.display = "none";
+            clearSidebar();
+            const data = JSON.parse(r.result);
+            DATA.nodes.clear();
+            DATA.edges.clear();
+            (data.nodes || []).forEach(function (n) {
+              DATA.nodes.add({
+                id: n.id,
+                label: n.label != null ? n.label : n.id,
+                color: nodeColor(n.color || "#8b949e")
+              });
+            });
+            (data.edges || []).forEach(function (e) {
+              DATA.edges.add({ from: e.from, to: e.to, label: e.label || "" });
+            });
+            network.once("stabilizationIterationsDone", fitFullGraphToFill);
+            setTimeout(fitFullGraphToFill, 550);
+          } catch (err) {
+            alert("导入失败：" + err.message);
+          }
+        };
+        r.readAsText(f);
+        this.value = "";
+      };
+
+      loadSample();
+    })();
+  </script>
+</body>
+</html>
