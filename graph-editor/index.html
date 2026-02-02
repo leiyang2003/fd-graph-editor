@@ -128,41 +128,6 @@
       min-height: 0;
       background: transparent;
     }
-    .node-legend {
-      margin: 16px 8px 0;
-      padding: 12px;
-      background: #161b22;
-      border: 1px solid #30363d;
-      border-radius: 8px;
-      font-size: 11px;
-      color: #8b949e;
-    }
-    .node-legend h4 {
-      margin: 0 0 8px 0;
-      font-size: 11px;
-      font-weight: 600;
-      color: #e6edf3;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-    .node-legend ul { list-style: none; margin: 0; padding: 0; }
-    .node-legend li {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 6px;
-    }
-    .node-legend .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-    .node-legend .legend-hint {
-      margin: 8px 0 0 0;
-      font-size: 10px;
-      color: #6e7681;
-    }
     .sidebar {
       width: 280px;
       flex-shrink: 0;
@@ -213,6 +178,12 @@
     .sidebar-legend { flex: 0 0 auto; }
     .legend-list { list-style: none; margin: 0; padding: 0; font-size: 12px; }
     .legend-list li { margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+    .legend-icon {
+      width: 24px;
+      height: 24px;
+      object-fit: contain;
+      flex-shrink: 0;
+    }
     .legend-swatch {
       display: inline-block;
       width: 10px;
@@ -298,16 +269,6 @@
           <button type="button" id="btn-delete" title="删除">⌫</button>
           <button type="button" id="btn-show-all" style="display:none" title="显示全部">⊞</button>
         </div>
-        <div class="node-legend">
-          <h4>节点说明</h4>
-          <ul>
-            <li><span class="dot" style="background:#3fb950"></span><span>🚩 起始点</span></li>
-            <li><span class="dot" style="background:#8b949e"></span><span>📄 剧情节点</span></li>
-            <li><span class="dot" style="background:#a371f7"></span><span>🔀 分岐点</span></li>
-            <li><span class="dot" style="background:#f85149"></span><span>🎯 结局</span></li>
-          </ul>
-          <p class="legend-hint">从左向右排布 · 直线连接</p>
-        </div>
       </aside>
       <div class="canvas-wrap">
         <div class="canvas-header">
@@ -331,14 +292,14 @@
           </div>
         </div>
         <div class="sidebar-section sidebar-legend">
-          <h4>颜色说明</h4>
+          <h4>节点说明</h4>
           <ul class="legend-list">
-            <li><span class="legend-swatch" style="background:#3fb950"></span><span>起始点</span></li>
-            <li><span class="legend-swatch" style="background:#8b949e"></span><span>剧情节点</span></li>
-            <li><span class="legend-swatch" style="background:#a371f7"></span><span>分岐点</span></li>
-            <li><span class="legend-swatch" style="background:#f85149"></span><span>坏结局</span></li>
-            <li><span class="legend-swatch" style="background:#d29922"></span><span>中性结局</span></li>
-            <li><span class="legend-swatch" style="background:#3fb950"></span><span>好结局</span></li>
+            <li><img class="legend-icon" src="../Icon/起始点.png" alt="" /><span>起始点</span></li>
+            <li><img class="legend-icon" src="../Icon/剧情节点.png" alt="" /><span>剧情节点</span></li>
+            <li><img class="legend-icon" src="../Icon/分歧点.png" alt="" /><span>分歧点</span></li>
+            <li><img class="legend-icon" src="../Icon/坏结局.png" alt="" /><span>坏结局</span></li>
+            <li><img class="legend-icon" src="../Icon/中性结局.png" alt="" /><span>中性结局</span></li>
+            <li><img class="legend-icon" src="../Icon/好结局.png" alt="" /><span>好结局</span></li>
           </ul>
         </div>
       </aside>
@@ -619,14 +580,11 @@
         var pathNodes = path.map(function (id, i) {
           var n = nodeMap[id];
           if (!n) return null;
-          return {
-            id: n.id,
-            label: n.label,
-            color: n.color,
+          return Object.assign({}, n, {
             x: i * spacing,
             y: MAIN_LINE_Y,
             fixed: true
-          };
+          });
         }).filter(Boolean);
         var pathEdges = [];
         for (var i = 0; i < path.length - 1; i++) {
@@ -786,7 +744,7 @@
         var curIds = new Set(curNodes.map(function (n) { return n.id; }));
         var merged = fullNodesBackup.map(function (n) {
           var cur = curIds.has(n.id) ? DATA.nodes.get(n.id) : null;
-          if (cur) return { id: n.id, label: cur.label, color: cur.color };
+          if (cur) return { id: cur.id, label: cur.label, color: cur.color, shape: cur.shape, image: cur.image, size: cur.size };
           return Object.assign({}, n);
         });
         DATA.nodes.clear();
@@ -936,6 +894,28 @@
         return { background: hex, border: hex };
       }
 
+      var ICON_BASE = "../Icon/";
+      function getIconForNode(hex, id) {
+        if (id === "Start") return ICON_BASE + "起始点.png";
+        var h = (hex || "").toLowerCase();
+        if (h === "#3fb950") return ICON_BASE + "好结局.png";
+        if (h === "#f85149") return ICON_BASE + "坏结局.png";
+        if (h === "#d29922") return ICON_BASE + "中性结局.png";
+        if (h === "#a371f7") return ICON_BASE + "分歧点.png";
+        return ICON_BASE + "剧情节点.png";
+      }
+      function buildNode(id, label, color) {
+        var hex = (typeof color === "string") ? color : (color && color.background) ? color.background : "#8b949e";
+        return {
+          id: id,
+          label: label != null ? label : id,
+          color: nodeColor(hex),
+          shape: "image",
+          image: getIconForNode(hex, id),
+          size: 48
+        };
+      }
+
       function loadSample() {
         inFocusMode = false;
         inMainLineMode = false;
@@ -949,11 +929,7 @@
         DATA.nodes.clear();
         DATA.edges.clear();
         SAMPLE.nodes.forEach(function (n) {
-          DATA.nodes.add({
-            id: n.id,
-            label: n.label,
-            color: nodeColor(n.color)
-          });
+          DATA.nodes.add(buildNode(n.id, n.label, n.color));
         });
         SAMPLE.edges.forEach(function (e) {
           DATA.edges.add({
@@ -1003,7 +979,7 @@
           alert("已存在 ID：" + id);
           return;
         }
-        DATA.nodes.add({ id: id, label: label, color: nodeColor(color) });
+        DATA.nodes.add(buildNode(id, label, color));
         hideModal("modal-node");
       };
 
@@ -1040,7 +1016,7 @@
         const id = document.getElementById("edit-id").value;
         const label = document.getElementById("edit-label").value.trim();
         const color = document.getElementById("edit-color").value;
-        DATA.nodes.update({ id: id, label: label || id, color: nodeColor(color) });
+        DATA.nodes.update(buildNode(id, label || id, color));
         hideModal("modal-edit");
         if (currentSelectedNodeId === id) updateSidebar(id);
       };
@@ -1134,11 +1110,7 @@
             DATA.nodes.clear();
             DATA.edges.clear();
             (data.nodes || []).forEach(function (n) {
-              DATA.nodes.add({
-                id: n.id,
-                label: n.label != null ? n.label : n.id,
-                color: nodeColor(n.color || "#8b949e")
-              });
+              DATA.nodes.add(buildNode(n.id, n.label != null ? n.label : n.id, n.color || "#8b949e"));
             });
             (data.edges || []).forEach(function (e) {
               DATA.edges.add({ from: e.from, to: e.to, label: e.label || "" });
